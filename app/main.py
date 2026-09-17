@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -41,7 +42,8 @@ def main():
                     "required": ["file_path"]
                 }
             }
-            }]
+            }],
+        tool_choice="auto"
     )
 
     if not chat.choices or len(chat.choices) == 0:
@@ -49,9 +51,24 @@ def main():
 
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!", file=sys.stderr)
-
-    # TODO: Uncomment the following line to pass the first stage
-    print(chat.choices[0].message.content)
+    
+    message = chat.choices[0].message
+    if message.tool_calls:
+        tool = message.tool_calls[0]
+        if tool.type == "function" and tool.function.name == "Read":
+            args = json.loads(tool.function.arguments)
+            if "file_path" not in args:
+                print("file_path arg missing in tool")
+            else:
+                file_path = args["file_path"]
+            try:
+                with open(file_path, "r", encoding="utf-8") as file:
+                    content = file.read()
+                    print(content)
+            except FileNotFoundError:
+                print(f"Error: file not found in the path: '{file_path}'")
+    else:
+        print(chat.choices[0].message.content)
 
 
 if __name__ == "__main__":
