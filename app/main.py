@@ -13,6 +13,19 @@ BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v
 MODEL = os.getenv("LOCAL_MODEL",default="anthropic/claude-haiku-4.5")
 
 
+def read_file_tool(args: str) -> str:
+    args = json.loads(args)
+    if "file_path" not in args:
+        return "file_path arg missing in tool"
+    else:
+        file_path = args["file_path"]
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+            return content
+    except FileNotFoundError:
+        return "Error: file not found in the path: '{file_path}'"
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("-p", required=True)
@@ -22,11 +35,14 @@ def main():
         raise RuntimeError("OPENROUTER_API_KEY is not set")
 
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+    
+    messages = [{"role": "user", "content": args.p}]
 
-    chat = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": args.p}],
-        tools=[{
+    while True:
+        chat = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            tools=[{
             "type": "function",
             "function": {
                 "name": "Read",
@@ -43,32 +59,35 @@ def main():
                 }
             }
             }],
-        tool_choice="auto"
-    )
-
-    if not chat.choices or len(chat.choices) == 0:
-        raise RuntimeError("no choices in response")
-
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!", file=sys.stderr)
-    
-    message = chat.choices[0].message
-    if message.tool_calls:
-        tool = message.tool_calls[0]
-        if tool.type == "function" and tool.function.name == "Read":
-            args = json.loads(tool.function.arguments)
-            if "file_path" not in args:
-                print("file_path arg missing in tool")
+            tool_choice="auto"
+        )
+        
+        message = chat.choices[0].message
+        if message.tool_calls:
+            tool = message.tool_calls[0]
+            if tool.type == "function" and tool.function.name == "Read":
+                args = tool.function.arguments
+                tool_content = read_file_tool(args)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "content": tool_content
+                })
             else:
-                file_path = args["file_path"]
-            try:
-                with open(file_path, "r", encoding="utf-8") as file:
-                    content = file.read()
-                    print(content)
-            except FileNotFoundError:
-                print(f"Error: file not found in the path: '{file_path}'")
-    else:
-        print(chat.choices[0].message.content)
+                print("Tool call not specified")
+                break
+        else:
+            print(chat.choices[0].message.content)
+            break
+        
+
+    # if not chat.choices or len(chat.choices) == 0:
+    #     raise RuntimeError("no choices in response")
+
+    # # You can use print statements as follows for debugging, they'll be visible when running tests.
+    # print("Logs from your program will appear here!", file=sys.stderr)
+    
+    
 
 
 if __name__ == "__main__":
