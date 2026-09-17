@@ -1,3 +1,3 @@
-You can find the chemical expiry in these files
-app/c1.py
-app/c2.py
+This is a simple python project.
+- The starting point of this project is app/init.py.
+- The file app/duration.py contains chemical properties.

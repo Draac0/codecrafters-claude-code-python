@@ -63,6 +63,7 @@ def main():
         )
         
         message = chat.choices[0].message
+        messages.append(message)
         if message.tool_calls:
             tool = message.tool_calls[0]
             if tool.type == "function" and tool.function.name == "Read":
