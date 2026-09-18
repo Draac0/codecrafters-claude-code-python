@@ -1,5 +1,6 @@
 import argparse
 import os
+import subprocess
 import sys
 from dotenv import load_dotenv
 import json
@@ -37,6 +38,20 @@ def write_file_tool(args: str) -> str:
     with open(file_path, "w", encoding="utf+8") as file:
         file.write(content)
     return "content is written to file_path"
+
+def exec_bash_cmds(args: str) -> str:
+    args = json.loads(args)
+    command = args["command"] if "command" in args else ""
+    print(command)
+    
+    result = subprocess.run(
+        command,
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+
+    return f"STDOUT: '{result.stdout}'\nSTDERR: '{result.stderr}'"
 
 def main():
     p = argparse.ArgumentParser()
@@ -90,7 +105,23 @@ def main():
                     }
                     }
                 }
-                }],
+                },{
+                    "type": "function",
+                    "function": {
+                        "name": "Bash",
+                        "description": "Execute a shell command",
+                        "parameters": {
+                        "type": "object",
+                        "required": ["command"],
+                        "properties": {
+                            "command": {
+                            "type": "string",
+                            "description": "The command to execute"
+                            }
+                        }
+                        }
+                    }
+                    }],
             tool_choice="auto"
         )
         
@@ -109,6 +140,14 @@ def main():
             elif tool.type == "function" and tool.function.name == "Write":
                 args = tool.function.arguments
                 tool_content =  write_file_tool(args)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "content": tool_content
+                })
+            elif tool.type == "function" and tool.function.name == "Bash":
+                args = tool.function.arguments
+                tool_content = exec_bash_cmds(args)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool.id,
