@@ -25,6 +25,18 @@ def read_file_tool(args: str) -> str:
             return content
     except FileNotFoundError:
         return "Error: file not found in the path: '{file_path}'"
+    
+def write_file_tool(args: str) -> str:
+    args = json.loads(args)
+    file_path = args["file_path"] if "file_path" in args else ""
+    content = args["content"] if "content" in args else ""
+    
+    if not file_path:
+        return "file_path arg is empty."
+
+    with open(file_path, "w", encoding="utf+8") as file:
+        file.write(content)
+    return "content is written to file_path"
 
 def main():
     p = argparse.ArgumentParser()
@@ -58,7 +70,27 @@ def main():
                     "required": ["file_path"]
                 }
             }
-            }],
+            },{
+                "type": "function",
+                "function": {
+                    "name": "Write",
+                    "description": "Write content to a file",
+                    "parameters": {
+                    "type": "object",
+                    "required": ["file_path", "content"],
+                    "properties": {
+                        "file_path": {
+                        "type": "string",
+                        "description": "The path of the file to write to"
+                        },
+                        "content": {
+                        "type": "string",
+                        "description": "The content to write to the file"
+                        }
+                    }
+                    }
+                }
+                }],
             tool_choice="auto"
         )
         
@@ -69,6 +101,14 @@ def main():
             if tool.type == "function" and tool.function.name == "Read":
                 args = tool.function.arguments
                 tool_content = read_file_tool(args)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "content": tool_content
+                })
+            elif tool.type == "function" and tool.function.name == "Write":
+                args = tool.function.arguments
+                tool_content =  write_file_tool(args)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool.id,
