@@ -1,13 +1,13 @@
 import argparse
 import os
 import subprocess
-import sys
 from dotenv import load_dotenv
 import json
 
 load_dotenv()
 
 from openai import OpenAI
+from app.utils import read_file, stringify_skill_metadata
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
@@ -20,12 +20,7 @@ def read_file_tool(args: str) -> str:
         return "file_path arg missing in tool"
     else:
         file_path = args["file_path"]
-    try:
-        with open(file_path, "r", encoding="utf-8") as file:
-            content = file.read()
-            return content
-    except FileNotFoundError:
-        return "Error: file not found in the path: '{file_path}'"
+    return read_file(file_path=file_path)
     
 def write_file_tool(args: str) -> str:
     args = json.loads(args)
@@ -62,8 +57,11 @@ def main():
         raise RuntimeError("OPENROUTER_API_KEY is not set")
 
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
-    
-    messages = [{"role": "user", "content": args.p}]
+    skills_metadata = stringify_skill_metadata()
+    messages = [
+        { "role": "system", "content": f"You have access to the following skills:\n\n- {skills_metadata}" },
+        {"role": "user", "content": args.p}
+        ]
 
     while True:
         chat = client.chat.completions.create(
