@@ -45,11 +45,11 @@ def stringify_skill_metadata() -> str:
         result += f'- {meta['name']}: {meta['description']}\n'
     return result
 
-def expand_skill_command(text: str) -> str | None:
+def expand_skill_command(text: str) -> str:
     with_slash = r'^/(\S+)'
     match = re.match(with_slash, text)
     if not match:
-        return None
+        return text
     skill = match.group(1)
     _, markdown = parse_skill_metadata()
     for m in markdown:
