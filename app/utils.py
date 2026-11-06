@@ -45,21 +45,32 @@ def stringify_skill_metadata() -> str:
         result += f'- {meta['name']}: {meta['description']}\n'
     return result
 
+def fill_args_in_skill(skill: str, args: str) -> str:
+    split_args = args.strip().split(' ')
+    def replace(match):
+        index = int(match.group(1) or match.group(2))
+        return split_args[index] if index < len(split_args) else ""
+    skill = re.sub(r"\$(?:ARGUMENTS\[(\d+)\]|(\d+))", replace, skill)
+    skill = re.sub(r"\$ARGUMENTS", lambda _: args.strip(), skill)
+    return skill
+    
+
 def expand_skill_command(text: str) -> str:
     with_slash = r'^/(\S+)'
     match = re.match(with_slash, text)
     if not match:
         return text
+    args = text[match.end():]
     skill = match.group(1)
     _, markdown = parse_skill_metadata()
     for m in markdown:
         if skill in m:
-            filled = re.sub(with_slash, m[skill], text, count=1)
-            return filled
+            return fill_args_in_skill(m[skill], args)
     return text
+
     
 
 if __name__ == "__main__":
-    print(expand_skill_command("/apple hi hello how are you"))
+    print(expand_skill_command("/apple staging eu-west"))
 
     
