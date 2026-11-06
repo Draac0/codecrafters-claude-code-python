@@ -7,7 +7,7 @@ import json
 load_dotenv()
 
 from openai import OpenAI
-from app.utils import read_file, stringify_skill_metadata
+from app.utils import read_file, stringify_skill_metadata, expand_skill_command
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
@@ -58,9 +58,10 @@ def main():
 
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
     skills_metadata = stringify_skill_metadata()
+    expanded_arg = expand_skill_command(args.p)
     messages = [
         { "role": "system", "content": f"You have access to the following skills:\n\n- {skills_metadata}" },
-        {"role": "user", "content": args.p}
+        {"role": "user", "content": expanded_arg}
         ]
 
     while True:

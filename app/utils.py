@@ -1,4 +1,5 @@
 import os
+import re
 import yaml
 
 def read_file(file_path: str) -> str:
@@ -23,25 +24,42 @@ def read_skill_content() -> list[str]:
             
     return skill_content
 
-def parse_skill_metadata() -> list:
+def parse_skill_metadata() -> tuple[list, list]:
     skill_content = read_skill_content()
     metadata = []
+    markdown = []
     for skill in skill_content:
         parts = skill.split('---',2)
         if len(parts) >= 3:
             yaml_block = parts[1]
             m = yaml.safe_load(yaml_block)
+            name = m["name"]
             metadata.append(m)
-    return metadata
+            markdown.append({name: parts[2]})
+    return metadata, markdown
 
 def stringify_skill_metadata() -> str:
-    metadata = parse_skill_metadata()
+    metadata, _ = parse_skill_metadata()
     result = ''
     for meta in metadata:
         result += f'- {meta['name']}: {meta['description']}\n'
     return result
 
-# if __name__ == "__main__":
-#     print(stringify_skill_metadata())
+def expand_skill_command(text: str) -> str | None:
+    with_slash = r'^/(\S+)'
+    match = re.match(with_slash, text)
+    if not match:
+        return None
+    skill = match.group(1)
+    _, markdown = parse_skill_metadata()
+    for m in markdown:
+        if skill in m:
+            filled = re.sub(with_slash, m[skill], text, count=1)
+            return filled
+    return text
+    
+
+if __name__ == "__main__":
+    print(expand_skill_command("/apple hi hello how are you"))
 
     
