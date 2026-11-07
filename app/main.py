@@ -1,4 +1,5 @@
 import argparse
+import sys
 import os
 import subprocess
 from dotenv import load_dotenv
@@ -37,7 +38,7 @@ def write_file_tool(args: str) -> str:
 def exec_bash_cmds(args: str) -> str:
     args = json.loads(args)
     command = args["command"] if "command" in args else ""
-    print(command)
+    print(command, file=sys.stderr)
     
     result = subprocess.run(
         command,
@@ -63,7 +64,6 @@ def main():
         { "role": "system", "content": f"You have access to the following skills:\n\n- {skills_metadata}" },
         *[{"role": "user", "content": content} for content in expanded_skills_array]
         ]
-    print(messages)
 
     while True:
         chat = client.chat.completions.create(
