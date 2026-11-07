@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -32,8 +33,10 @@ def main():
         *[{"role": "user", "content": content} for content in expanded_skills_array],
     ]
 
-    lsp_client = LSPClient()
-    set_lsp_client(lsp_client.from_environment())
+    lsp_client = LSPClient.from_environment()
+    set_lsp_client(lsp_client)
+    if lsp_client is not None:
+        print("LSP client connected", file=sys.stderr)
 
     response = call_agent(messages)
     print(response)
