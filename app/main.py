@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 
 from app.agent import call_agent
+from app.lsp import set_lsp_client
+from app.lsp_client import LSPClient
 from app.utils import expand_skill_command, stringify_skill_metadata
 
 load_dotenv()
@@ -29,7 +31,10 @@ def main():
         },
         *[{"role": "user", "content": content} for content in expanded_skills_array],
     ]
-    
+
+    lsp_client = LSPClient()
+    set_lsp_client(lsp_client.from_environment())
+
     response = call_agent(messages)
     print(response)
 

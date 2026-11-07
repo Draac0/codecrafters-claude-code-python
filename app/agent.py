@@ -5,7 +5,20 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
-from app.tools import exec_bash_cmds, exec_skill_tool, read_file_tool, write_file_tool
+from app.lsp import get_lsp_client
+from app.tool_calls import (
+    exec_bash_cmds,
+    exec_skill_tool,
+    read_file_tool,
+    write_file_tool,
+)
+from app.tool_definitions import (
+    LSH_tool_def,
+    bash_tool_def,
+    read_tool_def,
+    skill_tool_def,
+    write_tool_def,
+)
 
 load_dotenv()
 
@@ -19,88 +32,16 @@ def call_agent(
 ):
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
+    tool_defs = [read_tool_def, write_tool_def, bash_tool_def, skill_tool_def]
+
+    if get_lsp_client():
+        tool_defs.append(LSH_tool_def)
+
     while True:
         chat = client.chat.completions.create(
             model=MODEL,
             messages=messages,
-            tools=[
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "Read",
-                        "description": "Read and return the contents of a file",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "file_path": {
-                                    "type": "string",
-                                    "description": "The path to the file to read",
-                                }
-                            },
-                            "required": ["file_path"],
-                        },
-                    },
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "Write",
-                        "description": "Write content to a file",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["file_path", "content"],
-                            "properties": {
-                                "file_path": {
-                                    "type": "string",
-                                    "description": "The path of the file to write to",
-                                },
-                                "content": {
-                                    "type": "string",
-                                    "description": "The content to write to the file",
-                                },
-                            },
-                        },
-                    },
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "Bash",
-                        "description": "Execute a shell command",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["command"],
-                            "properties": {
-                                "command": {
-                                    "type": "string",
-                                    "description": "The command to execute",
-                                }
-                            },
-                        },
-                    },
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "Skill",
-                        "description": "Load a skill's instructions into the conversation",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["name"],
-                            "properties": {
-                                "name": {
-                                    "type": "string",
-                                    "description": "The name of the skill to use",
-                                },
-                                "args": {
-                                    "type": "string",
-                                    "description": "Optional arguments for the skill",
-                                },
-                            },
-                        },
-                    },
-                },
-            ],
+            tools=tool_defs,
             tool_choice="auto",
         )
 
@@ -131,6 +72,14 @@ def call_agent(
                 tool_content = exec_skill_tool(args)
                 messages.append(
                     {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
+                )
+            elif tool.type == "function" and tool.function.name == "LSH":
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool.id,
+                        "content": "LSP is not implemented yet",
+                    }
                 )
             else:
                 messages.append(
