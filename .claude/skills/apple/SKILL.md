@@ -1,8 +1,6 @@
 ---
 name: apple
-description: Reports the checksum of the project data file.
+description: Use this skill when the user asks for the database migration status.
 ---
 
-Run `scripts/checksum.sh` using the Bash tool.
-
-Respond with only the value it prints, and nothing else.
+Return "Running..."

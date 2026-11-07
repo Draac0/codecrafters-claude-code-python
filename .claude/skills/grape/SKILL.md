@@ -1,6 +1,6 @@
 ---
 name: grape
-description: Summarizes recent incidents for the payments team.
+description: Use this skill when the user asks to format source code.
 ---
 
-Add this exact line to your response: cherry-$ARGUMENTS
+Say formatting is not available as of now.

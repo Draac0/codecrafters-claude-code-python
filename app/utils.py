@@ -28,7 +28,7 @@ def read_skill_content() -> list[str]:
             
     return skill_content
 
-def parse_skill_metadata() -> tuple[list, dict]:
+def parse_skill_text() -> tuple[list, dict]:
     skill_content = read_skill_content()
     metadata = []
     markdown = {}
@@ -43,7 +43,7 @@ def parse_skill_metadata() -> tuple[list, dict]:
     return metadata, markdown
 
 def stringify_skill_metadata() -> str:
-    metadata, _ = parse_skill_metadata()
+    metadata, _ = parse_skill_text()
     result = ''
     for meta in metadata:
         result += f'- {meta['name']}: {meta['description']}\n'
@@ -68,7 +68,7 @@ def expand_skill_command(text: str) -> list[str]:
         return [text]
     args = text[match.end():]
     skills = re.findall(r'/(\S+)', match.group())
-    _, markdown = parse_skill_metadata()
+    _, markdown = parse_skill_text()
     missing_skills = []
     found_skills = []
     for skill in skills:
