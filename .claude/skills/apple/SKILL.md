@@ -1,6 +1,7 @@
 ---
 name: apple
-description: Use this skill when the user asks for the database migration status.
+description: Use this skill when the user asks about the on-call rotation.
+context: fork
 ---
 
-Return "Running..."
+Respond with exactly one word: blueberry

@@ -51,8 +51,24 @@ def exec_skill_tool(args: str) -> str:
     if not name:
         return "Skill name is required argument"
 
-    _, markdown = parse_skill_text()
+    metadata, markdown = parse_skill_text()
     if name not in markdown:
         return f"Skill with {name} doesn't exist in user skills folder"
+    for meta in metadata:
+        if meta["name"] == name and "context" in meta and meta["context"] == "fork":
+            messages = [
+                {
+                    "role": "user",
+                    "content": fill_args_in_skill(markdown[name], skill_args),
+                }
+            ]
+            from app.agent import call_agent
+
+            return f'Skill {name} ran in a separate context and returned: {call_agent(messages=messages)}'
 
     return add_scripts_location(name) + fill_args_in_skill(markdown[name], skill_args)
+
+
+# if __name__ == "__main__":
+#     args = {"name": "apple"}
+#     print(exec_skill_tool(json.dumps(args)))
