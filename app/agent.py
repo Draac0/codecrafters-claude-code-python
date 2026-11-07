@@ -6,6 +6,7 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
 from app.lsp import get_lsp_client
+from app.lsp_tool import call_lsp_tool
 from app.tool_calls import (
     exec_bash_cmds,
     exec_skill_tool,
@@ -73,12 +74,14 @@ def call_agent(
                 messages.append(
                     {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
                 )
-            elif tool.type == "function" and tool.function.name == "LSH":
+            elif tool.type == "function" and tool.function.name == "LSP":
+                args = tool.function.arguments
+                tool_content = call_lsp_tool(args)
                 messages.append(
                     {
                         "role": "tool",
                         "tool_call_id": tool.id,
-                        "content": "LSP is not implemented yet",
+                        "content": tool_content,
                     }
                 )
             else:
