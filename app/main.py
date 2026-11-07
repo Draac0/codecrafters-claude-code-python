@@ -63,6 +63,7 @@ def main():
         { "role": "system", "content": f"You have access to the following skills:\n\n- {skills_metadata}" },
         *[{"role": "user", "content": content} for content in expanded_skills_array]
         ]
+    print(messages)
 
     while True:
         chat = client.chat.completions.create(
