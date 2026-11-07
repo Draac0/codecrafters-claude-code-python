@@ -14,7 +14,7 @@ from app.tool_calls import (
     write_file_tool,
 )
 from app.tool_definitions import (
-    LSH_tool_def,
+    LSP_tool_def,
     bash_tool_def,
     read_tool_def,
     skill_tool_def,
@@ -36,7 +36,7 @@ def call_agent(
     tool_defs = [read_tool_def, write_tool_def, bash_tool_def, skill_tool_def]
 
     if get_lsp_client():
-        tool_defs.append(LSH_tool_def)
+        tool_defs.append(LSP_tool_def)
 
     while True:
         chat = client.chat.completions.create(
