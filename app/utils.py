@@ -24,10 +24,10 @@ def read_skill_content() -> list[str]:
             
     return skill_content
 
-def parse_skill_metadata() -> tuple[list, list]:
+def parse_skill_metadata() -> tuple[list, dict]:
     skill_content = read_skill_content()
     metadata = []
-    markdown = []
+    markdown = {}
     for skill in skill_content:
         parts = skill.split('---',2)
         if len(parts) >= 3:
@@ -35,7 +35,7 @@ def parse_skill_metadata() -> tuple[list, list]:
             m = yaml.safe_load(yaml_block)
             name = m["name"]
             metadata.append(m)
-            markdown.append({name: parts[2]})
+            markdown[name] = parts[2]
     return metadata, markdown
 
 def stringify_skill_metadata() -> str:
@@ -55,22 +55,30 @@ def fill_args_in_skill(skill: str, args: str) -> str:
     return skill
     
 
-def expand_skill_command(text: str) -> str:
-    with_slash = r'^/(\S+)'
+def expand_skill_command(text: str) -> list[str]:
+    with_slash = r'^(?:/\S+\s*)+'
     match = re.match(with_slash, text)
     if not match:
-        return text
+        return [text]
     args = text[match.end():]
-    skill = match.group(1)
+    skills = re.findall(r'/(\S+)', match.group())
     _, markdown = parse_skill_metadata()
-    for m in markdown:
-        if skill in m:
-            return fill_args_in_skill(m[skill], args)
-    return text
+    missing_skills = []
+    found_skills = []
+    for skill in skills:
+        if skill not in markdown:
+            missing_skills.append('/'+skill)
+        else:
+            found_skills.append(skill)
+    args = " ".join(missing_skills) + " " + args.strip()
+    if not found_skills:
+        return [text]
+    result: list[str] = []
+    for skill in found_skills:
+        result.append(fill_args_in_skill(markdown[skill], args))
+    return result
 
     
 
-if __name__ == "__main__":
-    print(expand_skill_command("/apple staging eu-west"))
-
-    
+# if __name__ == "__main__":
+#     print(expand_skill_command("/apple 4127 /grape"))

@@ -58,10 +58,10 @@ def main():
 
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
     skills_metadata = stringify_skill_metadata()
-    expanded_arg = expand_skill_command(args.p)
+    expanded_skills_array = expand_skill_command(args.p)
     messages = [
         { "role": "system", "content": f"You have access to the following skills:\n\n- {skills_metadata}" },
-        {"role": "user", "content": expanded_arg}
+        *[{"role": "user", "content": content} for content in expanded_skills_array]
         ]
 
     while True:
