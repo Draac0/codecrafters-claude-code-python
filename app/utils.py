@@ -53,7 +53,9 @@ def fill_args_in_skill(skill: str, args: str) -> str:
     skill = re.sub(r"\$(?:ARGUMENTS\[(\d+)\]|(\d+))", replace, skill)
     skill = re.sub(r"\$ARGUMENTS", lambda _: args.strip(), skill)
     return skill
-    
+
+def add_scripts_location(skill_name: str) -> str:
+    return f'Skill: {skill_name} (located at .claude/skills/{skill_name})\nPaths in the instructions below are relative to that folder.\n\n'    
 
 def expand_skill_command(text: str) -> list[str]:
     with_slash = r'^(?:/\S+\s*)+'
@@ -75,10 +77,10 @@ def expand_skill_command(text: str) -> list[str]:
         return [text]
     result: list[str] = []
     for skill in found_skills:
-        result.append(fill_args_in_skill(markdown[skill], args))
+        result.append(add_scripts_location(skill)+fill_args_in_skill(markdown[skill], args))
     return result
 
     
 
-# if __name__ == "__main__":
-#     print(expand_skill_command("/apple 4127 /grape"))
+if __name__ == "__main__":
+    print(expand_skill_command("/apple 4127 /grape"))
