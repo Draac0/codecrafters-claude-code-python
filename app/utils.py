@@ -7,8 +7,12 @@ def read_file(file_path: str) -> str:
         with open(file_path, "r", encoding="utf-8") as file:
             content = file.read()
             return content
+    except IsADirectoryError:
+        return f"Error: {file_path} is a directory, not a file"
     except FileNotFoundError:
-        return "Error: file not found in the path: '{file_path}'"
+        return f"Error: {file_path} does not exist"
+    except OSError as e:
+        return f"Error reading {file_path}: {e}"
     
 
 def read_skill_content() -> list[str]:
