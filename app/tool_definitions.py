@@ -72,7 +72,7 @@ bash_tool_def = {
     "type": "function",
     "function": {
         "name": "Bash",
-        "description": "Execute a shell command",
+        "description": "Use this to run commands, not to edit files. To change a file, use Write.",
         "parameters": {
             "type": "object",
             "required": ["command"],
