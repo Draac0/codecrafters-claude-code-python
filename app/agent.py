@@ -1,4 +1,5 @@
 import os
+import sys
 from collections.abc import Iterable
 
 from dotenv import load_dotenv
@@ -31,9 +32,7 @@ BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v
 MODEL = os.getenv("LOCAL_MODEL", default="anthropic/claude-haiku-4.5")
 
 
-def make_tool_call(
-    tool: ChatCompletionMessageToolCallUnion, lsp_diagnostics: str
-) -> str:
+def make_tool_call(tool: ChatCompletionMessageToolCallUnion) -> str:
     args = tool.function.arguments
     if tool.type == "function" and tool.function.name == "Read":
         tool_content = read_file_tool(args)
@@ -48,7 +47,7 @@ def make_tool_call(
         tool_content = call_lsp_tool(args)
     else:
         tool_content = (f"Tool with {tool.id} is not present in defined tools list",)
-    return tool_content + lsp_diagnostics
+    return tool_content
 
 
 def call_agent(
@@ -73,10 +72,16 @@ def call_agent(
         message = chat.choices[0].message
         messages.append(message)
         if message.tool_calls:
-            tool = message.tool_calls[0]
-            tool_content = make_tool_call(tool, lsp_diagnostics)
-            messages.append(
-                {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
-            )
+            for tool in message.tool_calls:
+                tool_content = make_tool_call(tool, lsp_diagnostics)
+                print(
+                    f"[tool] {tool.function.name} -> {str(tool_content)[:200]}",
+                    file=sys.stderr,
+                )
+                messages.append(
+                    {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
+                )
+            if lsp_diagnostics and messages[-1]["role"] == "tool":
+                messages[-1]["content"] += "\n\n" + lsp_diagnostics
         else:
             return chat.choices[0].message.content
