@@ -106,7 +106,7 @@ def _implement_find_references(client: LSPClient, uri: str, args: dict) -> str:
         return f"LSP error: {e}"
 
     if not result:
-        return "No definition found"
+        return "No references found"
 
     files_map = defaultdict(list)
     for res in result:
@@ -117,7 +117,6 @@ def _implement_find_references(client: LSPClient, uri: str, args: dict) -> str:
     references = f"Found {len(result)} references across {len(files_map)} files:\n\n"
     for file, lines in files_map.items():
         references += f"{file}:\n\n" + "\n".join(lines) + "\n\n"
-    print(references, file=sys.stderr)
     return references
 
 
@@ -137,12 +136,14 @@ def call_lsp_tool(args: str) -> str:
 
     uri = path_to_uri(abs_path)
 
-    try:
-        ensure_open_or_update(client, uri, abs_path)
-    except ValueError as e:
-        return e
-    except RuntimeError as e:
-        return f"LSP error: {e}"
+    if uri not in _uri_to_version:
+        try:
+            ensure_open_or_update(client, uri, abs_path)   # takes the didOpen path
+        except ValueError as e:
+            return f"Error: {e}"
+        except RuntimeError as e:
+            print(f"[lsp] open failed: {e}", file=sys.stderr)
+            return f"LSP error: {e}"
 
     op = args.get("operation")
     if op == "goToDefinition":

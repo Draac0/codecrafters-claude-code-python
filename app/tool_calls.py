@@ -43,7 +43,7 @@ def write_file_tool(args: str) -> str:
     if not file_path:
         return "file_path arg is empty."
 
-    with open(file_path, "w", encoding="utf+8") as file:
+    with open(file_path, "w", encoding="utf-8") as file:
         file.write(content)
     _update_file_in_lsp(file_path)
     return f"content is written to {file_path}"
