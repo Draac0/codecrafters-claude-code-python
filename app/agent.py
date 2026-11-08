@@ -46,7 +46,7 @@ def make_tool_call(tool: ChatCompletionMessageToolCallUnion) -> str:
     elif tool.type == "function" and tool.function.name == "LSP":
         tool_content = call_lsp_tool(args)
     else:
-        tool_content = (f"Tool with {tool.id} is not present in defined tools list",)
+        tool_content = f"Tool with {tool.id} is not present in defined tools list"
     return tool_content
 
 
@@ -60,8 +60,19 @@ def call_agent(
     if get_lsp_client():
         tool_defs.append(LSP_tool_def)
 
+    pending: list[str] = []  # diagnostics collected since the last request
+
     while True:
-        lsp_diagnostics = fetch_lsp_diagnostics()
+        diag = fetch_lsp_diagnostics()
+        if diag:
+            pending.append(diag)
+        if (
+            pending
+            and isinstance(messages[-1], dict)
+            and messages[-1].get("role") == "tool"
+        ):
+            messages[-1]["content"] += "\n\n" + "\n\n".join(pending)
+            pending.clear()
         chat = client.chat.completions.create(
             model=MODEL,
             messages=messages,
@@ -71,13 +82,15 @@ def call_agent(
 
         message = chat.choices[0].message
         messages.append(message)
-        if message.tool_calls:
-            for tool in message.tool_calls:
-                tool_content = make_tool_call(tool)
-                messages.append(
-                    {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
-                )
-            if lsp_diagnostics and messages[-1]["role"] == "tool":
-                messages[-1]["content"] += "\n\n" + lsp_diagnostics
-        else:
-            return chat.choices[0].message.content
+        if not message.tool_calls:
+            return message.content
+
+        for tool in message.tool_calls:
+            tool_content = make_tool_call(tool)
+            messages.append(
+                {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
+            )
+            # check versions now, before the next tool in this turn changes them
+            diag = fetch_lsp_diagnostics()
+            if diag:
+                pending.append(diag)
