@@ -9,7 +9,7 @@ from app.lsp import get_lsp_client
 from app.lsp_client import LSPClient
 from app.utils import read_file
 
-_opened_uris: set(str) = set()
+_opened_uris: dict[str, int] = defaultdict(int)
 
 
 def path_to_uri(abs_path: str) -> str:
@@ -21,14 +21,7 @@ def uri_to_relpath(uri: str) -> str:
     return os.path.relpath(abs_path)
 
 
-def ensure_open(client: LSPClient, uri: str, abs_path: str) -> None:
-    if uri in _opened_uris:
-        return
-
-    text = read_file(abs_path)
-    ext = os.path.splitext(abs_path)[1]
-    language_id = client.extension_to_language.get(ext, "plaintext")
-
+def _open_file(client: LSPClient, uri: str, file_contet: str, language_id: str) -> None:
     client.notify(
         "textDocument/didOpen",
         {
@@ -36,17 +29,41 @@ def ensure_open(client: LSPClient, uri: str, abs_path: str) -> None:
                 "uri": uri,
                 "languageId": language_id,
                 "version": 1,
-                "text": text,
+                "text": file_contet,
             }
         },
     )
+    _opened_uris[uri] = 1
 
-    _opened_uris.add(uri)
+
+def _update_file(client: LSPClient, uri: str, file_contet: str) -> None:
+    client.notify(
+        "textDocument/didChange",
+        {
+            "textDocument": {
+                "uri": uri,
+                "version": _opened_uris[uri] + 1,
+            },
+            "contentChanges": [{"text": file_contet}],
+        },
+    )
+    _opened_uris[uri] += 1
 
 
-def _implement_go_to_definition(
-    client: LSPClient, uri: str, args: dict
-) -> str:
+def ensure_open_or_update(client: LSPClient, uri: str, abs_path: str) -> None:
+    file_content = read_file(abs_path)
+    ext = os.path.splitext(abs_path)[1]
+    language_id = client.extension_to_language.get(ext, "")
+    if not language_id:
+        raise ValueError(f"no language server configured for {ext} files")
+
+    if uri in _opened_uris:
+        _update_file(client, uri, file_content)
+    else:
+        _open_file(client, uri, file_content, language_id)
+
+
+def _implement_go_to_definition(client: LSPClient, uri: str, args: dict) -> str:
     try:
         result = client.request(
             "textDocument/definition",
@@ -69,9 +86,7 @@ def _implement_go_to_definition(
     return f"Defined in {path}:{start['line'] + 1}:{start['character'] + 1}"
 
 
-def _implement_find_references(
-    client: LSPClient, uri: str,  args: dict
-) -> str:
+def _implement_find_references(client: LSPClient, uri: str, args: dict) -> str:
     try:
         result = client.request(
             "textDocument/references",
@@ -98,7 +113,7 @@ def _implement_find_references(
 
     references = f"Found {len(result)} references across {len(files_map)} files:\n\n"
     for file, lines in files_map.items():
-        references += f"{file}:\n" + "\n".join(lines)
+        references += f"{file}:\n\n" + "\n".join(lines) + "\n\n"
     print(references, file=sys.stderr)
     return references
 
@@ -120,7 +135,9 @@ def call_lsp_tool(args: str) -> str:
     uri = path_to_uri(abs_path)
 
     try:
-        ensure_open(client, uri, abs_path)
+        ensure_open_or_update(client, uri, abs_path)
+    except ValueError as e:
+        return e
     except RuntimeError as e:
         return f"LSP error: {e}"
 

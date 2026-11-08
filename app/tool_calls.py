@@ -1,7 +1,10 @@
 import json
+import os
 import subprocess
 import sys
 
+from app.lsp import get_lsp_client
+from app.lsp_tool import ensure_open_or_update, path_to_uri
 from app.utils import (
     add_scripts_location,
     fill_args_in_skill,
@@ -19,6 +22,19 @@ def read_file_tool(args: str) -> str:
     return read_file(file_path=file_path)
 
 
+def _update_file_in_lsp(file_path: str) -> None:
+    abs_path = os.path.abspath(file_path)
+    uri = path_to_uri(abs_path)
+    client = get_lsp_client()
+    if not client:
+        print("LSP Client is not enabled", file=sys.stderr)
+        return
+    try:
+        ensure_open_or_update(client, uri, abs_path)
+    except Exception as e:
+        print(e, file=sys.stderr)
+
+
 def write_file_tool(args: str) -> str:
     args = json.loads(args)
     file_path = args.get("file_path", "")
@@ -29,7 +45,8 @@ def write_file_tool(args: str) -> str:
 
     with open(file_path, "w", encoding="utf+8") as file:
         file.write(content)
-    return "content is written to file_path"
+    _update_file_in_lsp(file_path)
+    return f"content is written to {file_path}"
 
 
 def exec_bash_cmds(args: str) -> str:
@@ -64,7 +81,7 @@ def exec_skill_tool(args: str) -> str:
             ]
             from app.agent import call_agent
 
-            return f'Skill {name} ran in a separate context and returned: {call_agent(messages=messages)}'
+            return f"Skill {name} ran in a separate context and returned: {call_agent(messages=messages)}"
 
     return add_scripts_location(name) + fill_args_in_skill(markdown[name], skill_args)
 
