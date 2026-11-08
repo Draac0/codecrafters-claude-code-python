@@ -5,11 +5,14 @@ from collections import defaultdict
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from app.lsp import get_lsp_client
+from app.lsp import get_lsp_client, get_lsp_cursor, set_lsp_cursor
 from app.lsp_client import LSPClient
 from app.utils import read_file
 
-_opened_uris: dict[str, int] = defaultdict(int)
+_uri_to_version: dict[str, int] = defaultdict(int)
+_last_shown_diagnostics: dict[str, set[tuple[int, int, str]]] = defaultdict(
+    set
+)  # file -> line, character, message
 
 
 def path_to_uri(abs_path: str) -> str:
@@ -33,7 +36,7 @@ def _open_file(client: LSPClient, uri: str, file_contet: str, language_id: str) 
             }
         },
     )
-    _opened_uris[uri] = 1
+    _uri_to_version[uri] = 1
 
 
 def _update_file(client: LSPClient, uri: str, file_contet: str) -> None:
@@ -42,12 +45,12 @@ def _update_file(client: LSPClient, uri: str, file_contet: str) -> None:
         {
             "textDocument": {
                 "uri": uri,
-                "version": _opened_uris[uri] + 1,
+                "version": _uri_to_version[uri] + 1,
             },
             "contentChanges": [{"text": file_contet}],
         },
     )
-    _opened_uris[uri] += 1
+    _uri_to_version[uri] += 1
 
 
 def ensure_open_or_update(client: LSPClient, uri: str, abs_path: str) -> None:
@@ -57,7 +60,7 @@ def ensure_open_or_update(client: LSPClient, uri: str, abs_path: str) -> None:
     if not language_id:
         raise ValueError(f"no language server configured for {ext} files")
 
-    if uri in _opened_uris:
+    if uri in _uri_to_version:
         _update_file(client, uri, file_content)
     else:
         _open_file(client, uri, file_content, language_id)
@@ -146,3 +149,57 @@ def call_lsp_tool(args: str) -> str:
         return _implement_go_to_definition(client, uri, args)
     elif op == "findReferences":
         return _implement_find_references(client, uri, args)
+
+
+def fetch_lsp_diagnostics() -> str:
+    client = get_lsp_client()
+    if not client:
+        return ""
+    cursor = get_lsp_cursor()
+    try:
+        new_diag = client.notifications(cursor, 0)
+    except RuntimeError:
+        return ""  # treat a failed poll as "nothing new"
+    set_lsp_cursor(new_diag.get("cursor", cursor))
+    notifications = new_diag.get("notifications", [])
+
+    # keep only the latest current report per file in this batch
+    latest: dict[str, list] = {}
+
+    for note in notifications:
+        if note.get("method") != "textDocument/publishDiagnostics":
+            continue
+        params = note.get("params")
+        if not isinstance(params, dict):
+            continue
+        uri = params.get("uri")
+        if not uri:
+            continue
+
+        version = params.get("version")
+        if version is not None and version != _uri_to_version.get(uri):
+            continue  # stale report
+
+        latest[uri] = params.get("diagnostics", [])
+
+    report = []
+    for uri, diagnostics in latest.items():
+        curr_issues: set[tuple[int, int, str]] = set()
+        for d in diagnostics:
+            start = d["range"]["start"]
+            curr_issues.add((start["line"] + 1, start["character"] + 1, d["message"]))
+        new_issues = curr_issues - _last_shown_diagnostics.get(uri, set())
+        _last_shown_diagnostics[uri] = curr_issues
+        if new_issues:
+            lines = [f"{uri_to_relpath(uri)}:"]
+            for line, char, message in sorted(new_issues):
+                lines.append(f"  [Line {line}:{char}] {message}")
+            report.append("\n".join(lines))
+    if not report:
+        return ""
+
+    body = "\n\n".join(report)
+    return (
+        "<new-diagnostics>The following new diagnostic issues were detected:\n\n"
+        f"{body}</new-diagnostics>"
+    )

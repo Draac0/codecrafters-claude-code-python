@@ -4,9 +4,12 @@ from collections.abc import Iterable
 from dotenv import load_dotenv
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCallUnion,
+)
 
 from app.lsp import get_lsp_client
-from app.lsp_tool import call_lsp_tool
+from app.lsp_tool import call_lsp_tool, fetch_lsp_diagnostics
 from app.tool_calls import (
     exec_bash_cmds,
     exec_skill_tool,
@@ -28,6 +31,26 @@ BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v
 MODEL = os.getenv("LOCAL_MODEL", default="anthropic/claude-haiku-4.5")
 
 
+def make_tool_call(
+    tool: ChatCompletionMessageToolCallUnion, lsp_diagnostics: str
+) -> str:
+    args = tool.function.arguments
+    if tool.type == "function" and tool.function.name == "Read":
+        tool_content = read_file_tool(args)
+
+    elif tool.type == "function" and tool.function.name == "Write":
+        tool_content = write_file_tool(args)
+    elif tool.type == "function" and tool.function.name == "Bash":
+        tool_content = exec_bash_cmds(args)
+    elif tool.type == "function" and tool.function.name == "Skill":
+        tool_content = exec_skill_tool(args)
+    elif tool.type == "function" and tool.function.name == "LSP":
+        tool_content = call_lsp_tool(args)
+    else:
+        tool_content = (f"Tool with {tool.id} is not present in defined tools list",)
+    return tool_content + lsp_diagnostics
+
+
 def call_agent(
     messages: Iterable[ChatCompletionMessageParam],
 ):
@@ -39,6 +62,7 @@ def call_agent(
         tool_defs.append(LSP_tool_def)
 
     while True:
+        lsp_diagnostics = fetch_lsp_diagnostics()
         chat = client.chat.completions.create(
             model=MODEL,
             messages=messages,
@@ -50,47 +74,9 @@ def call_agent(
         messages.append(message)
         if message.tool_calls:
             tool = message.tool_calls[0]
-            if tool.type == "function" and tool.function.name == "Read":
-                args = tool.function.arguments
-                tool_content = read_file_tool(args)
-                messages.append(
-                    {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
-                )
-            elif tool.type == "function" and tool.function.name == "Write":
-                args = tool.function.arguments
-                tool_content = write_file_tool(args)
-                messages.append(
-                    {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
-                )
-            elif tool.type == "function" and tool.function.name == "Bash":
-                args = tool.function.arguments
-                tool_content = exec_bash_cmds(args)
-                messages.append(
-                    {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
-                )
-            elif tool.type == "function" and tool.function.name == "Skill":
-                args = tool.function.arguments
-                tool_content = exec_skill_tool(args)
-                messages.append(
-                    {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
-                )
-            elif tool.type == "function" and tool.function.name == "LSP":
-                args = tool.function.arguments
-                tool_content = call_lsp_tool(args)
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool.id,
-                        "content": tool_content,
-                    }
-                )
-            else:
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool.id,
-                        "content": f"Tool with {tool.id} is not present in defined tools list",
-                    }
-                )
+            tool_content = make_tool_call(tool, lsp_diagnostics)
+            messages.append(
+                {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
+            )
         else:
             return chat.choices[0].message.content
