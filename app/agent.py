@@ -73,7 +73,7 @@ def call_agent(
         messages.append(message)
         if message.tool_calls:
             for tool in message.tool_calls:
-                tool_content = make_tool_call(tool, lsp_diagnostics)
+                tool_content = make_tool_call(tool)
                 print(
                     f"[tool] {tool.function.name} -> {str(tool_content)[:200]}",
                     file=sys.stderr,
