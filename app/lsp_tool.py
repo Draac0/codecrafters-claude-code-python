@@ -138,7 +138,7 @@ def call_lsp_tool(args: str) -> str:
 
     if uri not in _uri_to_version:
         try:
-            ensure_open_or_update(client, uri, abs_path)   # takes the didOpen path
+            ensure_open_or_update(client, uri, abs_path)  # takes the didOpen path
         except ValueError as e:
             return f"Error: {e}"
         except RuntimeError as e:
@@ -152,22 +152,75 @@ def call_lsp_tool(args: str) -> str:
         return _implement_find_references(client, uri, args)
 
 
+# def fetch_lsp_diagnostics() -> str:
+#     client = get_lsp_client()
+#     if not client:
+#         return ""
+#     cursor = get_lsp_cursor()
+#     try:
+#         new_diag = client.notifications(cursor, 0)
+#     except RuntimeError:
+#         return ""  # treat a failed poll as "nothing new"
+#     set_lsp_cursor(new_diag.get("cursor", cursor))
+#     notifications = new_diag.get("notifications", [])
+
+#     # keep only the latest current report per file in this batch
+#     latest: dict[str, list] = {}
+
+#     for note in notifications:
+#         if note.get("method") != "textDocument/publishDiagnostics":
+#             continue
+#         params = note.get("params")
+#         if not isinstance(params, dict):
+#             continue
+#         uri = params.get("uri")
+#         if not uri:
+#             continue
+
+#         version = params.get("version")
+#         if version is not None and version != _uri_to_version.get(uri):
+#             continue  # stale report
+
+#         latest[uri] = params.get("diagnostics", [])
+
+#     report = []
+#     for uri, diagnostics in latest.items():
+#         curr_issues: set[tuple[int, int, str]] = set()
+#         for d in diagnostics:
+#             start = d["range"]["start"]
+#             curr_issues.add((start["line"] + 1, start["character"] + 1, d["message"]))
+#         new_issues = curr_issues - _last_shown_diagnostics.get(uri, set())
+#         _last_shown_diagnostics[uri] = curr_issues
+#         if new_issues:
+#             lines = [f"{uri_to_relpath(uri)}:"]
+#             for line, char, message in sorted(new_issues):
+#                 lines.append(f"  [Line {line}:{char}] {message}")
+#             report.append("\n".join(lines))
+#     if not report:
+#         return ""
+
+#     body = "\n\n".join(report)
+#     return (
+#         "<new-diagnostics>The following new diagnostic issues were detected:\n\n"
+#         f"{body}</new-diagnostics>"
+#     )
+
+
 def fetch_lsp_diagnostics() -> str:
     client = get_lsp_client()
     if not client:
         return ""
+
     cursor = get_lsp_cursor()
     try:
         new_diag = client.notifications(cursor, 0)
     except RuntimeError:
-        return ""  # treat a failed poll as "nothing new"
+        return ""
     set_lsp_cursor(new_diag.get("cursor", cursor))
-    notifications = new_diag.get("notifications", [])
 
-    # keep only the latest current report per file in this batch
-    latest: dict[str, list] = {}
+    new_by_file: dict[str, list[tuple[int, int, str]]] = {}
 
-    for note in notifications:
+    for note in new_diag.get("notifications", []):
         if note.get("method") != "textDocument/publishDiagnostics":
             continue
         params = note.get("params")
@@ -181,24 +234,34 @@ def fetch_lsp_diagnostics() -> str:
         if version is not None and version != _uri_to_version.get(uri):
             continue  # stale report
 
-        latest[uri] = params.get("diagnostics", [])
+        curr_issues = {
+            (
+                d["range"]["start"]["line"] + 1,
+                d["range"]["start"]["character"] + 1,
+                d["message"],
+            )
+            for d in params.get("diagnostics", [])
+        }
+        new_issues = curr_issues - _last_shown_diagnostics.get(uri, set())
+        _last_shown_diagnostics[uri] = (
+            curr_issues  # each report replaces the previous one
+        )
+
+        bucket = new_by_file.setdefault(uri, [])
+        for issue in sorted(new_issues):
+            if issue not in bucket:
+                bucket.append(issue)
 
     report = []
-    for uri, diagnostics in latest.items():
-        curr_issues: set[tuple[int, int, str]] = set()
-        for d in diagnostics:
-            start = d["range"]["start"]
-            curr_issues.add((start["line"] + 1, start["character"] + 1, d["message"]))
-        new_issues = curr_issues - _last_shown_diagnostics.get(uri, set())
-        _last_shown_diagnostics[uri] = curr_issues
-        if new_issues:
-            lines = [f"{uri_to_relpath(uri)}:"]
-            for line, char, message in sorted(new_issues):
-                lines.append(f"  [Line {line}:{char}] {message}")
-            report.append("\n".join(lines))
+    for uri, issues in new_by_file.items():
+        if not issues:
+            continue
+        lines = [f"{uri_to_relpath(uri)}:"]
+        lines += [f"  [Line {line}:{char}] {message}" for line, char, message in issues]
+        report.append("\n".join(lines))
+
     if not report:
         return ""
-
     body = "\n\n".join(report)
     return (
         "<new-diagnostics>The following new diagnostic issues were detected:\n\n"
