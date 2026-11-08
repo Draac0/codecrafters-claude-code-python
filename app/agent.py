@@ -74,10 +74,6 @@ def call_agent(
         if message.tool_calls:
             for tool in message.tool_calls:
                 tool_content = make_tool_call(tool)
-                print(
-                    f"[tool] {tool.function.name} -> {str(tool_content)[:200]}",
-                    file=sys.stderr,
-                )
                 messages.append(
                     {"role": "tool", "tool_call_id": tool.id, "content": tool_content}
                 )
